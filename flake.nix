@@ -11,8 +11,8 @@
   # Linux-only multicall (ps, top, free, kill, pgrep/pkill/pidwait,
   # pidof, pmap, pwdx, slabtop, hugetop, sysctl, tload, uptime, vmstat,
   # watch) built from `pkgsStatic.procps` via the post-link recipe in
-  # `nix-lib/native/procps.nix` — same ld -r + objcopy --redefine-sym
-  # pattern as e2fsprogs / util-linux. `linuxOnly = true` suppresses
+  # ./multicall.nix — same ld -r + objcopy --redefine-sym pattern as
+  # e2fsprogs / util-linux / findutils. `linuxOnly = true` suppresses
   # the darwin row of the matrix (procps reads /proc).
   outputs = { self, unpins-lib }:
     unpins-lib.lib.mkStandaloneFlake {
@@ -28,5 +28,9 @@
       # --version handler.
       smoke = [ "ps" "--version" ];
       smokePattern = "procps-ng";
+      build = pkgs:
+        import ./multicall.nix {
+          lib = pkgs.lib // unpins-lib.lib;
+        } pkgs;
     };
 }
