@@ -43,6 +43,15 @@ let
   multicall = pkgs.pkgsStatic.procps.overrideAttrs (old: {
     pname = "procps-ng-multi";
 
+    # procps's `unsigned personality` global in src/ps/global.c collides
+    # with musl's `int personality(unsigned long)` syscall wrapper at LTO
+    # type-merge time ("variable 'personality' redeclared as function").
+    # Surfaces when chain-LTO whole-archives musl into the same LTO unit
+    # as procps's bitcode. Rename procps's global to `ps_personality_setting`
+    # — procps never calls musl's personality(2) syscall, so this is a
+    # one-way collision fix.
+    patches = (old.patches or [ ]) ++ [ ./personality-rename.patch ];
+
     postBuild = (old.postBuild or "") + ''
       set -e
       mkdir -p multicall
@@ -170,34 +179,70 @@ let
         exit 1
       fi
 
-      # 3. Per-tool: ld -r + iterated --redefine-sym.
-      __procps_combine() {
-        local san=$1 objs=$2
-        $LD -r -o multicall/$san.combined.o $objs
-        local -a redefs=()
-        while read -r old new; do
-          [ -n "$old" ] || continue
-          redefs+=(--redefine-sym "$old=$new")
-        done < <(
-          $NM --defined-only -g multicall/$san.combined.o \
-            | awk -v s="$san" \
-                '$2 ~ /^[TBDR]$/ && $3 !~ /^__x86\.get_pc_thunk\./ {
-                    old = $3
-                    if (old == "main") new = s "_main"
-                    else                new = s "__" old
-                    print old, new
-                }'
-        )
-        if [ ''${#redefs[@]} -gt 0 ]; then
-          $OBJCOPY "''${redefs[@]}" multicall/$san.combined.o
-        fi
-      }
+      # 3. X+Z: rebuild every tool with renames at preprocessor time.
+      #
+      #    Many procps tools share .c source files (`local/fileutils.c`,
+      #    `local/strutils.c`, …) but only top/watch/slabtop/ps have
+      #    per-program CFLAGS in Makefile.am — automake emits prefixed
+      #    object names (`local/src_top_top-fileutils.o`) only for those.
+      #    The rest (pidof/free/kill/…) compile shared .c sources to a
+      #    single shared `local/fileutils.o` path. So our rebuild has to
+      #    avoid clobbering between tool iterations.
+      #
+      #    Two phases:
+      #    A. Discovery: for every tool, NM its currently-present .o
+      #       set (the first-pass output of upstream's buildPhase, with
+      #       canonical un-renamed symbols) and emit
+      #       `multicall/<san>.rename.h` with `#define <sym> <san>__<sym>`
+      #       lines for every defined global, plus `#define main
+      #       <san>_main`. Skip COMDAT thunks (`__x86.get_pc_thunk.*`).
+      #    B. Per-tool rebuild + isolate: rm the tool's .o files,
+      #       re-run `make $objs` with `NIX_CFLAGS_COMPILE` augmented
+      #       to `-include` the per-tool rename header. The
+      #       gcc-wrapper prepends those flags to every gcc call.
+      #       Immediately copy the freshly-recompiled .o files into
+      #       `multicall/<san>/` so the NEXT iteration's rebuild
+      #       can clobber the shared path without losing this tool's
+      #       bits. Final link consumes the copies.
+      #
+      #    Output is bitcode all the way down — no `ld -r`, no
+      #    `-flinker-output=nolto-rel`, no `objcopy --redefine-sym`.
+      _orig_NIX_CFLAGS_COMPILE=''${NIX_CFLAGS_COMPILE:-}
 
-      : > multicall/combined.list
+      # Phase A: discovery
+      while IFS=$'\t' read -r tool san objs; do
+        {
+          echo "/* multicall rename header: $san */"
+          echo "#define main ''${san}_main"
+          # Only valid C identifiers: gcc LTO sometimes emits global
+          # symbols with dot-disambiguation suffixes that aren't legal
+          # cpp macro names.
+          $NM --defined-only -g $objs 2>/dev/null \
+            | awk -v s="$san" '
+                $2 ~ /^[TBDRWVC]$/ \
+                  && $3 ~ /^[A-Za-z_][A-Za-z0-9_]*$/ \
+                  && $3 != "main" {
+                  if (!seen[$3]++) print "#define " $3 " " s "__" $3
+                }'
+        } > multicall/$san.rename.h
+      done < multicall/tools.filtered.tsv
+
+      # Phase B: per-tool rebuild and isolate
+      : > multicall/all_objs.list
       : > multicall/applets.list
       while IFS=$'\t' read -r tool san objs; do
-        __procps_combine "$san" "$objs"
-        echo "multicall/$san.combined.o" >> multicall/combined.list
+        rm -f $objs
+        NIX_CFLAGS_COMPILE="$_orig_NIX_CFLAGS_COMPILE -include $PWD/multicall/$san.rename.h" \
+          make -j''${NIX_BUILD_CORES:-1} $objs
+
+        mkdir -p multicall/$san
+        for obj in $objs; do
+          # Flatten path so multicall/<san>/<flat>.o is unique
+          # (e.g. `local/fileutils.o` → `local_fileutils.o`)
+          flat=$(echo "$obj" | tr '/' '_')
+          cp "$obj" "multicall/$san/$flat"
+          echo "multicall/$san/$flat" >> multicall/all_objs.list
+        done
         printf '%s\t%s\n' "$tool" "$san" >> multicall/applets.list
       done < multicall/tools.filtered.tsv
 
@@ -252,24 +297,27 @@ DISPATCHER_TAIL
       install -m644 ${multicallMk} unpin-multicall.mk
 
       make -f Makefile -f unpin-multicall.mk \
-        MULTI_COMBINED_OBJS="$(tr '\n' ' ' < multicall/combined.list)" \
+        MULTI_TOOL_OBJS="$(tr '\n' ' ' < multicall/all_objs.list)" \
         MULTI_GROUP_OPEN="-Wl,--start-group" \
         MULTI_GROUP_CLOSE="-Wl,--end-group" \
         MULTI_LIBGCC="-lgcc" \
         multicall-link
     '';
 
-    # Replace upstream's per-tool binaries with one multicall + applet
-    # symlinks. nixpkgs `_moveSbinToBin` in fixupPhase would re-merge
-    # sbin/ into bin/ — clear both even though procps has very few sbin
-    # entries (just sysctl).
-    postInstall = (old.postInstall or "") + ''
-      rm -rf "$out/bin" "$out/sbin"
+    # Skip upstream's `make install`: after X+Z's per-tool recompile
+    # (which renamed `main` to `<san>_main` in every tool's .o files),
+    # automake's install rule would relink each src/<tool> binary
+    # standalone — those links can't resolve `main` because we renamed
+    # it. We don't need the per-tool binaries anyway; only the
+    # multicall and its applet symlinks ship.
+    installPhase = ''
+      runHook preInstall
       mkdir -p "$out/bin"
       install -m755 multicall/procps-ng "$out/bin/procps-ng"
       while IFS=$'\t' read -r tool san; do
         ln -s procps-ng "$out/bin/$tool"
       done < multicall/applets.list
+      runHook postInstall
     '';
   });
 
@@ -280,15 +328,18 @@ DISPATCHER_TAIL
   # $(TINFO_LIBS). $(MATH_LIBS) is wanted by top. The rest of the
   # configure-detected lib slots stay empty under pkgsStatic (no
   # systemd / selinux / namespace headers).
+  # X+Z final link: feed dispatcher.o + every tool's renamed .o files
+  # directly into gcc. All .o are bitcode (no per-tool materialization),
+  # so lto-plugin runs the full LTO across tools + libproc2 + musl.
   multicallMk = pkgs.writeText "unpin-procps-multicall.mk" ''
     MULTI_OUT ?= multicall/procps-ng
 
     .PHONY: multicall-link
     multicall-link: $(MULTI_OUT)
 
-    $(MULTI_OUT): multicall/dispatcher.o $(MULTI_COMBINED_OBJS)
+    $(MULTI_OUT): multicall/dispatcher.o $(MULTI_TOOL_OBJS)
     	$(CC) $(AM_LDFLAGS) $(LDFLAGS) -o $@ \
-    		multicall/dispatcher.o $(MULTI_COMBINED_OBJS) \
+    		multicall/dispatcher.o $(MULTI_TOOL_OBJS) \
     		$(MULTI_GROUP_OPEN) \
     		library/.libs/libproc2.a \
     		$(NCURSES_LIBS) $(TINFO_LIBS) $(MATH_LIBS) \

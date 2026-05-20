@@ -1,0 +1,344 @@
+diff -urN a/src/ps/common.h b/src/ps/common.h
+--- a/src/ps/common.h	2026-05-19 19:48:32.109134889 -0300
++++ b/src/ps/common.h	2026-05-19 19:48:32.137133784 -0300
+@@ -278,7 +278,7 @@
+ #define TF_no_forest   0x2000  // don't see how to do threads w/ forest option
+ #define TF_must_use    0x4000  // options only make sense if LWP/SPID column added
+ 
+-/* personality control flags */
++/* ps_personality_setting control flags */
+ #define PER_BROKEN_o      0x0001
+ #define PER_BSD_h         0x0002
+ #define PER_BSD_m         0x0004
+@@ -462,7 +462,7 @@
+ extern int             max_line_width;
+ extern int             negate_selection;
+ extern int             page_size;  // "int" for math reasons?
+-extern unsigned        personality;
++extern unsigned        ps_personality_setting;
+ extern int             prefer_bsd_defaults;
+ extern int             running_only;
+ extern int             screen_cols;
+diff -urN a/src/ps/global.c b/src/ps/global.c
+--- a/src/ps/global.c	2026-05-19 19:48:32.109134889 -0300
++++ b/src/ps/global.c	2026-05-19 19:48:32.137133784 -0300
+@@ -191,7 +191,7 @@
+ int             negate_selection = -1;
+ int             running_only = -1;
+ int             page_size = -1;  // "int" for math reasons?
+-unsigned        personality = 0xffffffff;
++unsigned        ps_personality_setting = 0xffffffff;
+ int             prefer_bsd_defaults = -1;
+ int             screen_cols = -1;
+ int             screen_rows = -1;
+@@ -289,10 +289,10 @@
+     );
+ }
+ 
+-/**************** personality control **************/
++/**************** ps_personality_setting control **************/
+ 
+ typedef struct personality_table_struct {
+-  const char *name; /* personality name */
++  const char *name; /* ps_personality_setting name */
+   const void *jump; /* See gcc extension info.   :-)   */
+ } personality_table_struct;
+ 
+@@ -337,7 +337,7 @@
+   };
+   const int personality_table_count = sizeof(personality_table)/sizeof(personality_table_struct);
+ 
+-  personality = 0;
++  ps_personality_setting = 0;
+   prefer_bsd_defaults = 0;
+ 
+   bsd_j_format = "OL_j";
+@@ -357,11 +357,11 @@
+   if(!s || !*s) s="unknown";   /* "Do The Right Thing[tm]" */
+   if(getenv("I_WANT_A_BROKEN_PS")) s="old";
+   sl = strlen(s);
+-  if(sl > 15) return _("environment specified an unknown personality");
++  if(sl > 15) return _("environment specified an unknown ps_personality_setting");
+   strncpy(buf, s, sl);
+   buf[sl] = '\0';
+   if ((saved_personality_text = strdup(buf))==NULL) {
+-    fprintf(stderr, _("cannot strdup() personality text\n"));
++    fprintf(stderr, _("cannot strdup() ps_personality_setting text\n"));
+     exit(EXIT_FAILURE);
+   }
+ 
+@@ -369,12 +369,12 @@
+       sizeof(personality_table_struct), compare_personality_table_structs
+   );
+ 
+-  if(!found) return _("environment specified an unknown personality");
++  if(!found) return _("environment specified an unknown ps_personality_setting");
+ 
+   goto *(found->jump);    /* See gcc extension info.  :-)   */
+ 
+   case_bsd:
+-    personality = PER_FORCE_BSD | PER_BSD_h | PER_BSD_m;
++    ps_personality_setting = PER_FORCE_BSD | PER_BSD_h | PER_BSD_m;
+     prefer_bsd_defaults = 1;
+     bsd_j_format = "FB_j";
+     bsd_l_format = "FB_l";
+@@ -384,13 +384,13 @@
+     return NULL;
+ 
+   case_old:
+-    personality = PER_FORCE_BSD | PER_OLD_m;
++    ps_personality_setting = PER_FORCE_BSD | PER_OLD_m;
+     prefer_bsd_defaults = 1;
+     return NULL;
+ 
+   case_debian:  /* Toss this? They don't seem to care much. */
+   case_gnu:
+-    personality = PER_GOOD_o | PER_OLD_m;
++    ps_personality_setting = PER_GOOD_o | PER_OLD_m;
+     prefer_bsd_defaults = 1;
+     sysv_f_format  = "RD_f";
+     /* sysv_fl_format = "RD_fl"; */   /* old Debian ps can't do this! */
+@@ -399,7 +399,7 @@
+     return NULL;
+ 
+   case_linux:
+-    personality = PER_GOOD_o | PER_ZAP_ADDR | PER_SANE_USER;
++    ps_personality_setting = PER_GOOD_o | PER_ZAP_ADDR | PER_SANE_USER;
+     return NULL;
+ 
+   case_default: /* use defaults for ps, ignoring other environment variables */
+@@ -419,7 +419,7 @@
+   case_digital:
+     // no PER_NO_DEFAULT_g even though man page claims it
+     // Reality: the g is a NOP
+-    personality = PER_GOOD_o | PER_BSD_h;
++    ps_personality_setting = PER_GOOD_o | PER_BSD_h;
+     prefer_bsd_defaults = 1;
+     sysv_f_format  = "F5FMT";
+     sysv_fl_format = "FL5FMT";
+@@ -433,7 +433,7 @@
+     return NULL;
+ 
+   case_sunos4:
+-    personality = PER_NO_DEFAULT_g;
++    ps_personality_setting = PER_NO_DEFAULT_g;
+     prefer_bsd_defaults = 1;
+     bsd_j_format = "FB_j";
+     bsd_l_format = "FB_l";
+@@ -447,7 +447,7 @@
+     s = getenv("_XPG");
+     if(s && s[0]>'0' && s[0]<='9')
+         return NULL;
+-    personality = PER_IRIX_l;
++    ps_personality_setting = PER_IRIX_l;
+     return NULL;
+ 
+   case_os390:  /* IBM's OS/390 OpenEdition on the S/390 mainframe */
+@@ -458,13 +458,13 @@
+ 
+   case_hp:
+   case_hpux:
+-    personality = PER_HPUX_x;
++    ps_personality_setting = PER_HPUX_x;
+     return NULL;
+ 
+   case_svr4:
+   case_sysv:
+   case_sco:
+-    personality = PER_SVR4_x;
++    ps_personality_setting = PER_SVR4_x;
+     return NULL;
+ 
+   case_posix:
+@@ -626,9 +626,9 @@
+   );
+ 
+   fprintf(stderr,
+-    "personality=0x%08x (from \"%s\")\n"
++    "ps_personality_setting=0x%08x (from \"%s\")\n"
+     "EUID=%d TTY=%d,%d page_size=%d\n",
+-    personality, saved_personality_text,
++    ps_personality_setting, saved_personality_text,
+     cached_euid, (int)major(cached_tty), (int)minor(cached_tty),
+     (int)(page_size)
+   );
+diff -urN a/src/ps/help.c b/src/ps/help.c
+--- a/src/ps/help.c	2026-05-19 19:48:32.109134889 -0300
++++ b/src/ps/help.c	2026-05-19 19:48:32.141133626 -0300
+@@ -141,7 +141,7 @@
+     fputs(_("  l                   BSD long format\n"), out);
+     fputs(_(" -M, Z                add security data (for SELinux)\n"), out);
+     fputs(_(" -O <format>          preloaded with default columns\n"), out);
+-    fputs(_("  O <format>          as -O, with BSD personality\n"), out);
++    fputs(_("  O <format>          as -O, with BSD ps_personality_setting\n"), out);
+     fputs(_(" -o, o, --format <format>\n"
+             "                      user-defined format\n"), out);
+     fputs(_("  -P                  add psr column\n"), out);
+diff -urN a/src/ps/parser.c b/src/ps/parser.c
+--- a/src/ps/parser.c	2026-05-19 19:48:32.109134889 -0300
++++ b/src/ps/parser.c	2026-05-19 19:48:32.145133468 -0300
+@@ -468,20 +468,20 @@
+       trace("-w wide output\n");
+       w_count++;
+       break;
+-    case 'x':  /* behind personality until "ps -ax" habit is uncommon */
+-      if(personality & PER_SVR4_x){
++    case 'x':  /* behind ps_personality_setting until "ps -ax" habit is uncommon */
++      if(ps_personality_setting & PER_SVR4_x){
+         // Same as -y, but for System V Release 4 MP
+         trace("-x works like Sun Solaris & SCO Unixware -y option\n");
+         format_modifiers |= FM_y;
+         break;
+       }
+-      if(personality & PER_HPUX_x){
++      if(ps_personality_setting & PER_HPUX_x){
+         trace("-x extends the command line\n");
+         w_count += 2;
+         unix_f_option = 1;
+         break;
+       }
+-      return _("must set personality to get -x option");
++      return _("must set ps_personality_setting to get -x option");
+     case 'y':  /* Sun's -l hack (also: Irix "lnode" resource control info) */
+       trace("-y print lnone info in UID/USER column or do Sun -l hack\n");
+       format_modifiers |= FM_y;
+@@ -525,7 +525,7 @@
+     if(!force_bsd) return _("cannot happen - problem #1");
+   }else{
+     flagptr--; /* off beginning, will increment before use */
+-    if(personality & PER_FORCE_BSD){
++    if(ps_personality_setting & PER_FORCE_BSD){
+       if(!force_bsd) return _("cannot happen - problem #2");
+     }else{
+       if(force_bsd) return _("second chance parse failed, not BSD or SysV");
+@@ -644,7 +644,7 @@
+     case 'h':
+       trace("h repeat header\n");
+       if(header_type) return _("only one heading option may be specified");
+-      if(personality & PER_BSD_h) header_type = HEAD_MULTI;
++      if(ps_personality_setting & PER_BSD_h) header_type = HEAD_MULTI;
+       else                        header_type = HEAD_NONE;
+       break;
+     case 'j':
+@@ -667,11 +667,11 @@
+       break;
+     case 'm':
+       trace("m all threads, sort on mem use, show mem info\n");
+-      if(personality & PER_OLD_m){
++      if(ps_personality_setting & PER_OLD_m){
+         format_flags |= FF_Lm;
+         break;
+       }
+-      if(personality & PER_BSD_m){
++      if(ps_personality_setting & PER_BSD_m){
+         defer_sf_option("pmem", SF_B_m);
+         break;
+       }
+@@ -1142,7 +1142,7 @@
+         err = parse_sysv_option();
+         break;
+     case ARG_BSD:
+-        if(force_bsd && !(personality & PER_FORCE_BSD)) return _("way bad");
++        if(force_bsd && !(ps_personality_setting & PER_FORCE_BSD)) return _("way bad");
+       }
+       prefer_bsd_defaults = 1;
+       err = parse_bsd_option();
+@@ -1217,7 +1217,7 @@
+   ps_argv = argv;
+   thisarg = 0;
+ 
+-  if(personality & PER_FORCE_BSD) goto try_bsd;
++  if(ps_personality_setting & PER_FORCE_BSD) goto try_bsd;
+ 
+   err = parse_all_options();
+   if(err) goto try_bsd;
+@@ -1244,8 +1244,8 @@
+   /* no need to reset flagptr */
+   force_bsd=1;
+   prefer_bsd_defaults=1;
+-  if(!( (PER_OLD_m|PER_BSD_m) & personality )) /* if default m setting... */
+-    personality |= PER_OLD_m; /* Prefer old Linux over true BSD. */
++  if(!( (PER_OLD_m|PER_BSD_m) & ps_personality_setting )) /* if default m setting... */
++    ps_personality_setting |= PER_OLD_m; /* Prefer old Linux over true BSD. */
+   /* Do not set PER_FORCE_BSD! It is tested below. */
+ 
+   err2 = parse_all_options();
+@@ -1262,7 +1262,7 @@
+ 
+ total_failure:
+   reset_parser();
+-  if(personality & PER_FORCE_BSD) fprintf(stderr, _("error: %s\n"), err2);
++  if(ps_personality_setting & PER_FORCE_BSD) fprintf(stderr, _("error: %s\n"), err2);
+   else fprintf(stderr, _("error: %s\n"), err);
+   do_help(NULL, EXIT_FAILURE);
+ }
+diff -urN a/src/ps/select.c b/src/ps/select.c
+--- a/src/ps/select.c	2026-05-19 19:48:32.109134889 -0300
++++ b/src/ps/select.c	2026-05-19 19:48:32.141133626 -0300
+@@ -45,7 +45,7 @@
+     return NULL;
+   }
+   /* For every BSD but SunOS, the 'g' option is a NOP. (enabled by default) */
+-  if( !(personality & PER_NO_DEFAULT_g) && !(simple_select&(SS_U_a|SS_U_d)) )
++  if( !(ps_personality_setting & PER_NO_DEFAULT_g) && !(simple_select&(SS_U_a|SS_U_d)) )
+     switch_val = simple_select|SS_B_g;
+   else
+     switch_val = simple_select;
+diff -urN a/src/ps/sortformat.c b/src/ps/sortformat.c
+--- a/src/ps/sortformat.c	2026-05-19 19:48:32.109134889 -0300
++++ b/src/ps/sortformat.c	2026-05-19 19:48:32.145133468 -0300
+@@ -683,7 +683,7 @@
+   }
+   /* since FM_y adds RSS anyway, don't do this hack when that is true */
+   if( (format_flags & FF_Ul) && !(format_modifiers & FM_y) ){
+-    if(personality & PER_IRIX_l){ /* add "rss" then ':' here */
++    if(ps_personality_setting & PER_IRIX_l){ /* add "rss" then ':' here */
+       PUSH("sgi_rss");
+       fn = xmalloc(sizeof(format_node));
+       fn->width = 1;
+@@ -700,14 +700,14 @@
+   }
+   if(format_flags & FF_Ul){
+     if(format_modifiers & FM_y) PUSH("rss");
+-    else if(personality & (PER_ZAP_ADDR|PER_IRIX_l)) PUSH("sgi_p");
++    else if(ps_personality_setting & (PER_ZAP_ADDR|PER_IRIX_l)) PUSH("sgi_p");
+     else PUSH("addr_1");
+   }
+   if(format_modifiers & FM_c){
+     PUSH("pri"); PUSH("class");
+   }else if(format_flags & FF_Ul){
+     PUSH("ni");
+-    if(personality & PER_IRIX_l) PUSH("priority");
++    if(ps_personality_setting & PER_IRIX_l) PUSH("priority");
+     else /* is this good? */ PUSH("opri");
+   }
+ 
+@@ -727,7 +727,7 @@
+   if(thread_flags & TF_U_T) PUSH("spid");
+   PUSH("pid");
+   if(format_flags & FF_Uf){
+-    if(personality & PER_SANE_USER) PUSH("user");
++    if(ps_personality_setting & PER_SANE_USER) PUSH("user");
+     else PUSH("uid_hack");
+   }else if(format_flags & FF_Ul){
+     PUSH("uid");
+@@ -930,15 +930,15 @@
+       fn->next=format_list;
+       format_list=fn;
+     }
+-    /* Do personality-specific translations not covered by format_flags.
+-     * Generally, these only get hit when personality overrides unix output.
++    /* Do ps_personality_setting-specific translations not covered by format_flags.
++     * Generally, these only get hit when ps_personality_setting overrides unix output.
+      * That (mostly?) means the Digital and Debian personalities.
+      */
+-    if((personality & PER_ZAP_ADDR) && (format_flags & FF_Ul)){
++    if((ps_personality_setting & PER_ZAP_ADDR) && (format_flags & FF_Ul)){
+       fn = do_one_spec("sgi_p", NULL);
+       if(fmt_add_after("ADDR", fn)) fmt_delete("ADDR");
+     }
+-    if((personality & PER_SANE_USER) && (format_flags & FF_Uf)){
++    if((ps_personality_setting & PER_SANE_USER) && (format_flags & FF_Uf)){
+       fn = do_one_spec("user", NULL);
+       if(fmt_add_after("UID", fn)) fmt_delete("UID");
+     }
