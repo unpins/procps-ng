@@ -8,29 +8,43 @@
 
   inputs.unpins-lib.url = "github:unpins/nix-lib";
 
-  # Linux-only multicall (ps, top, free, kill, pgrep/pkill/pidwait,
-  # pidof, pmap, pwdx, slabtop, hugetop, sysctl, tload, uptime, vmstat,
-  # watch) built from `pkgsStatic.procps` via the post-link recipe in
-  # ./multicall.nix — same ld -r + objcopy --redefine-sym pattern as
-  # e2fsprogs / util-linux / findutils. `linuxOnly = true` suppresses
-  # the darwin row of the matrix (procps reads /proc).
+  # Linux: full 16-applet multicall from `pkgsStatic.procps` (post-link
+  # rename recipe in ./multicall.nix — same shape as e2fsprogs /
+  # util-linux / findutils).
+  #
+  # darwin + Windows (cosmo): 3-applet subset (watch, uptime, tload)
+  # via ./portable.nix. watch is pure POSIX; uptime + tload route
+  # through ./portable-libproc.c which provides per-OS shims for
+  # procps_uptime / procps_loadavg / procps_users (sysctl + utmpx on
+  # darwin; clock_gettime(CLOCK_BOOTTIME) + getloadavg via cosmo on
+  # Windows). The rest of the procps tooling reads /proc directly and
+  # has no portable analogue.
   outputs = { self, unpins-lib }:
     unpins-lib.lib.mkStandaloneFlake {
       inherit self;
       name = "procps-ng";
       pkgsAttr = "procps";
-      linuxOnly = true;
-      # procps-ng is a pure multicall holder — there's no
-      # "procps-ng --version" upstream tool. Smoke routes through the
-      # `procps-ng <applet>` dispatch form (the dispatcher accepts
-      # `<applet>` as argv[1] when the primary is invoked by its real
-      # name), so this runs `procps-ng ps --version` → ps's natural
-      # --version handler.
-      smoke = [ "ps" "--version" ];
+      # `watch --version` exits 0 + prints "watch from procps-ng 4.0.6"
+      # on every target. Linux dispatcher accepts `procps-ng watch …`
+      # → watch_main; darwin/cosmo dispatchers fall through to watch
+      # when the binary is renamed by CI smoke. smokePattern is the
+      # PACKAGE_STRING from c.h's PROCPS_NG_VERSION macro.
+      smoke = [ "watch" "--version" ];
       smokePattern = "procps-ng";
       build = pkgs:
-        import ./multicall.nix {
+        if pkgs.stdenv.hostPlatform.isLinux then
+          import ./multicall.nix {
+            lib = pkgs.lib // unpins-lib.lib;
+          } pkgs
+        else
+          import ./portable.nix {
+            lib = pkgs.lib // unpins-lib.lib;
+          } pkgs.pkgsStatic;
+      windowsBuild = pkgs:
+        let
           lib = pkgs.lib // unpins-lib.lib;
-        } pkgs;
+          cosmoPkgs = lib.cosmoStaticCross pkgs;
+        in
+        import ./portable.nix { inherit lib; } cosmoPkgs;
     };
 }
