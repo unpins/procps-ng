@@ -237,6 +237,16 @@ let
       for app in ${lib.concatStringsSep " " applets}; do
         ln -s procps-ng "$out/bin/$app"
       done
+
+      # Embed the 3 portable applets' man pages (committed roff under the
+      # source `man/` dir). withMan harvests $out/share/man for the darwin
+      # build. The Windows/cosmo build ignores this $out and uses
+      # flake.nix's winManRoot (same 3 pages) so it doesn't over-embed the
+      # full Linux nixpkgs procps man set.
+      for app in ${lib.concatStringsSep " " applets}; do
+        install -Dm644 "man/$app.1" "$out/share/man/man1/$app.1"
+      done
+
       runHook postInstall
     '';
   };

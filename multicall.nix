@@ -317,6 +317,20 @@ DISPATCHER_TAIL
       while IFS=$'\t' read -r tool san; do
         ln -s procps-ng "$out/bin/$tool"
       done < multicall/applets.list
+
+      # Embed each bundled applet's man page (withMan harvests
+      # $out/share/man into the unified unpin/ ZIP). The pages are
+      # committed roff under the source `man/` dir; pkill/pidwait are
+      # `.so man1/pgrep.1` redirects the unpin reader resolves. hugetop
+      # has no upstream man page, so its glob simply finds nothing.
+      while IFS=$'\t' read -r tool san; do
+        for s in 1 5 8; do
+          [ -f "man/$tool.$s" ] && install -Dm644 "man/$tool.$s" "$out/share/man/man$s/$tool.$s"
+        done
+      done < multicall/applets.list
+      # sysctl's config-file page rides along (not an applet name).
+      [ -f man/sysctl.conf.5 ] && install -Dm644 man/sysctl.conf.5 "$out/share/man/man5/sysctl.conf.5"
+
       runHook postInstall
     '';
   });

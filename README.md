@@ -28,6 +28,10 @@ uptime
 tload
 ```
 
+## Man pages
+
+Each binary embeds the man pages for the applets it actually ships — read with `unpin man procps-ng`. Linux carries the full set (`ps`, `top`, `free`, `kill`, `pgrep`/`pkill`/`pidwait`, `pidof`, `pmap`, `pwdx`, `slabtop`, `sysctl` + `sysctl.conf`, `vmstat`, `watch`, `uptime`, `tload`); macOS and Windows carry just `watch`, `uptime`, and `tload`.
+
 ## License
 
 GPL-2.0-or-later (upstream procps-ng).
