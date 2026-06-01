@@ -246,50 +246,11 @@ let
         printf '%s\t%s\n' "$tool" "$san" >> multicall/applets.list
       done < multicall/tools.filtered.tsv
 
-      # 4. dispatcher.c
-      {
-        echo '#include <string.h>'
-        echo '#include <stdio.h>'
-        echo
-        while IFS=$'\t' read -r tool san; do
-          echo "int ''${san}_main(int argc, char *argv[]);"
-        done < multicall/applets.list
-        echo
-        echo 'struct applet { const char *name; int (*fn)(int, char **); };'
-        echo
-        echo 'static const struct applet applets[] = {'
-        while IFS=$'\t' read -r tool san; do
-          printf '    {"%s", %s_main},\n' "$tool" "$san"
-        done < multicall/applets.list
-        echo '    {NULL, NULL}'
-        echo '};'
-        cat <<'DISPATCHER_TAIL'
-
-int main(int argc, char *argv[])
-{
-    char *name = argv[0];
-    char *slash = strrchr(name, '/');
-    if (slash) name = slash + 1;
-    if (strncmp(name, "lt-", 3) == 0) name += 3;
-
-    if ((strcmp(name, "procps-ng") == 0 || strcmp(name, "procps") == 0)
-        && argc >= 2 && argv[1][0] != '-') {
-        name = argv[1];
-        argv++;
-        argc--;
-    }
-
-    for (const struct applet *a = applets; a->name; a++) {
-        if (strcmp(name, a->name) == 0)
-            return a->fn(argc, argv);
-    }
-    /* Default route: --version, --help, and binaries renamed by the
-       CI smoke step (smoke) land in ps. ps's getopt handles --version
-       regardless of argv[0]. */
-    return src_ps_pscommand_main(argc, argv);
-}
-DISPATCHER_TAIL
-      } > multicall/dispatcher.c
+      # 4. dispatcher.c from multicall/applets.list (TSV name\tfn) via the
+      #    shared Recipe-A generator. defaultApplet=src_ps_pscommand routes
+      #    --version/--help and a renamed binary into ps (see nix-lib
+      #    lib.multicallTableDispatcherC).
+${lib.multicallTableDispatcherC { name = "procps-ng"; defaultApplet = "src_ps_pscommand"; }}
 
       $CC -O2 -c -o multicall/dispatcher.o multicall/dispatcher.c
 
