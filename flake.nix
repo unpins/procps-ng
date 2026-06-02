@@ -21,32 +21,18 @@
   # has no portable analogue.
   outputs = { self, unpins-lib }:
     let
-      # Windows/cosmo ships only watch/uptime/tload (portable.nix). Without
-      # an explicit winManRoot, mkStandaloneFlake's Windows man graft falls
-      # back to nixpkgs procps' FULL man set (ps/top/free/vmstat/…) and
-      # over-embeds pages for applets the .exe doesn't have. Pin it to the
-      # same 3 pages portable.nix installs, rendered from the SAME 4.0.6
-      # tarball portable.nix fetches (nixpkgs procps is 4.0.4 — a version
-      # skew that would make the bytes diverge), on x86_64-linux (the
-      # Windows runner). Result: cosmo .exe man == darwin man, byte-identical.
-      pkgsX = unpins-lib.inputs.nixpkgs.legacyPackages.x86_64-linux;
-      procpsWinMan = pkgsX.runCommand "procps-win-man" { } ''
-        src=${pkgsX.fetchurl {
-          url = "mirror://sourceforge/procps-ng/procps-ng-4.0.6.tar.xz";
-          sha256 = "sha256-Z76m+8OkKlNaAjDJ6JHl3ftNnTlCLUZWWimQ0azhUhY=";
-        }}
-        tar xf "$src"
-        cd procps-ng-*/
-        for app in watch uptime tload; do
-          install -Dm644 "man/$app.1" "$out/share/man/man1/$app.1"
-        done
-      '';
+      # Windows/cosmo + darwin ship only watch/uptime/tload (portable.nix),
+      # whose installPhase installs exactly those 3 man pages (from its own
+      # 4.0.6 tarball) into $out/share/man. The cosmo cross runs that same
+      # installPhase, so the .exe harvests its OWN man — the same 3 pages
+      # darwin embeds, version-matched, no winManRoot graft (which would have
+      # pulled nixpkgs procps' FULL set, or needed a separate 4.0.6 fetch to
+      # dodge the 4.0.4 skew).
     in
     unpins-lib.lib.mkStandaloneFlake {
       inherit self;
       name = "procps-ng";
       pkgsAttr = "procps";
-      winManRoot = procpsWinMan;
       # `watch --version` exits 0 + prints "watch from procps-ng 4.0.6"
       # on every target. Linux dispatcher accepts `procps-ng watch …`
       # → watch_main; darwin/cosmo dispatchers fall through to watch
