@@ -18,15 +18,24 @@ Part of the [unpins](https://unpins.org) project — native single-binary builds
 | `uptime` | ✓ | ✓ | ✓ |
 | `tload` | ✓ | ✓ | ✓ |
 
-The Linux-only applets read `/proc` directly; their macOS/Windows analogues are different tools entirely (e.g. macOS already ships its own `ps`/`top`/`sysctl`). The three portable applets share a single multicall executable on each OS; dispatch is by `argv[0]`.
+The Linux-only programs read `/proc` directly; their macOS/Windows analogues are different tools entirely (e.g. macOS already ships its own `ps`/`top`/`sysctl`). The three portable programs share a single executable on each OS.
 
 ## Usage
 
+Run a program with [unpin](https://github.com/unpins/unpin):
+
 ```bash
-watch -n 1 date
-uptime
-tload
+unpin procps-ng watch -n 1 date
+unpin procps-ng uptime
 ```
+
+To install the programs onto your PATH:
+
+```bash
+unpin install procps-ng
+```
+
+`unpin install procps-ng` creates the `ps`, `top`, `free`, `watch`, `uptime`, and other commands (the Linux-only set is wider than macOS/Windows).
 
 ## Man pages
 

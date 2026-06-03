@@ -275,15 +275,15 @@ diff -urN a/src/ps/parser.c b/src/ps/parser.c
 diff -urN a/src/ps/select.c b/src/ps/select.c
 --- a/src/ps/select.c	2026-05-19 19:48:32.109134889 -0300
 +++ b/src/ps/select.c	2026-05-19 19:48:32.141133626 -0300
-@@ -45,7 +45,7 @@
-     return NULL;
-   }
-   /* For every BSD but SunOS, the 'g' option is a NOP. (enabled by default) */
--  if( !(personality & PER_NO_DEFAULT_g) && !(simple_select&(SS_U_a|SS_U_d)) )
-+  if( !(ps_personality_setting & PER_NO_DEFAULT_g) && !(simple_select&(SS_U_a|SS_U_d)) )
-     switch_val = simple_select|SS_B_g;
-   else
-     switch_val = simple_select;
+@@ -39,7 +39,7 @@
+ const char *select_setup(void)
+ {
+     /* SunOS by default will not select session leaders without the g option */
+-    if ( (personality & PER_NO_DEFAULT_g) && !(simple_select & (SS_B_g)))
++    if ( (ps_personality_setting & PER_NO_DEFAULT_g) && !(simple_select & (SS_B_g)))
+         select_no_leader = true;
+
+     switch (simple_select) {
 diff -urN a/src/ps/sortformat.c b/src/ps/sortformat.c
 --- a/src/ps/sortformat.c	2026-05-19 19:48:32.109134889 -0300
 +++ b/src/ps/sortformat.c	2026-05-19 19:48:32.145133468 -0300
