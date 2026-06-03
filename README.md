@@ -9,17 +9,6 @@ Standalone build of [procps-ng](https://gitlab.com/procps-ng/procps).
 
 Part of the [unpins](https://unpins.org) project — native single-binary builds with no third-party runtime dependencies.
 
-## Applets
-
-| Applet | Linux | macOS | Windows |
-| :--- | :---: | :---: | :---: |
-| `ps`, `top`, `free`, `kill`, `pgrep`, `pkill`, `pidwait`, `pidof`, `pmap`, `pwdx`, `slabtop`, `hugetop`, `sysctl`, `vmstat` | ✓ | — | — |
-| `watch` | ✓ | ✓ | ✓ |
-| `uptime` | ✓ | ✓ | ✓ |
-| `tload` | ✓ | ✓ | ✓ |
-
-The Linux-only programs read `/proc` directly; their macOS/Windows analogues are different tools entirely (e.g. macOS already ships its own `ps`/`top`/`sysctl`). The three portable programs share a single executable on each OS.
-
 ## Usage
 
 Run a program with [unpin](https://github.com/unpins/unpin):
@@ -37,9 +26,18 @@ unpin install procps-ng
 
 `unpin install procps-ng` creates the `ps`, `top`, `free`, `watch`, `uptime`, and other commands (the Linux-only set is wider than macOS/Windows).
 
+## Programs
+
+| programs | Linux | macOS | Windows |
+| :--- | :---: | :---: | :---: |
+| `ps`, `top`, `free`, `kill`, `pgrep`, `pkill`, `pidwait`, `pidof`, `pmap`, `pwdx`, `slabtop`, `hugetop`, `sysctl`, `vmstat` | ✓ | — | — |
+| `watch`, `uptime`, `tload` | ✓ | ✓ | ✓ |
+
+The Linux-only programs read `/proc` directly; their macOS/Windows analogues are different programs entirely (e.g. macOS already ships its own `ps`/`top`/`sysctl`). The three portable programs share a single executable on each OS.
+
 ## Man pages
 
-Each binary embeds the man pages for the applets it actually ships — read with `unpin man procps-ng`. Linux carries the full set (`ps`, `top`, `free`, `kill`, `pgrep`/`pkill`/`pidwait`, `pidof`, `pmap`, `pwdx`, `slabtop`, `sysctl` + `sysctl.conf`, `vmstat`, `watch`, `uptime`, `tload`); macOS and Windows carry just `watch`, `uptime`, and `tload`.
+Each binary embeds the man pages for the programs it actually ships — read with `unpin man procps-ng`. Linux carries the full set (`ps`, `top`, `free`, `kill`, `pgrep`/`pkill`/`pidwait`, `pidof`, `pmap`, `pwdx`, `slabtop`, `sysctl` + `sysctl.conf`, `vmstat`, `watch`, `uptime`, `tload`); macOS and Windows carry just `watch`, `uptime`, and `tload`.
 
 ## License
 
