@@ -24,7 +24,7 @@ To install the programs onto your PATH:
 unpin install procps-ng
 ```
 
-`unpin install procps-ng` creates the `ps`, `top`, `free`, `watch`, `uptime`, and other commands (the Linux-only set is wider than macOS/Windows).
+`unpin install procps-ng` creates the `ps`, `top`, `free`, `watch`, `uptime`, and other commands — the Linux-only set is wider than macOS/Windows (full list: `unpin info procps-ng`, or the table below).
 
 ## Programs
 
