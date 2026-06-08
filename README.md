@@ -1,13 +1,13 @@
 # procps-ng
 
-Standalone build of [procps-ng](https://gitlab.com/procps-ng/procps).
+[procps-ng](https://gitlab.com/procps-ng/procps) — `ps`, `top`, `free`, `uptime`, `vmstat` and friends, as a single self-contained binary built natively for Linux, macOS, and Windows.
 
 [![CI](https://github.com/unpins/procps-ng/actions/workflows/procps-ng.yml/badge.svg)](https://github.com/unpins/procps-ng/actions)
 ![Linux](https://img.shields.io/badge/Linux-✓-success?logo=linux&logoColor=white)
 ![macOS](https://img.shields.io/badge/macOS-✓-success?logo=apple&logoColor=white)
 ![Windows](https://img.shields.io/badge/Windows-✓-success?logo=windows&logoColor=white)
 
-Part of the [unpins](https://unpins.org) project — native single-binary builds with no third-party runtime dependencies.
+Part of the [unpins](https://unpins.org) catalog; install it with [`unpin`](https://github.com/unpins/unpin): `unpin install procps-ng`.
 
 ## Usage
 
@@ -39,6 +39,3 @@ The Linux-only programs read `/proc` directly; their macOS/Windows analogues are
 
 Each binary embeds the man pages for the programs it actually ships — read with `unpin man procps-ng`. Linux carries the full set (`ps`, `top`, `free`, `kill`, `pgrep`/`pkill`/`pidwait`, `pidof`, `pmap`, `pwdx`, `slabtop`, `sysctl` + `sysctl.conf`, `vmstat`, `watch`, `uptime`, `tload`); macOS and Windows carry just `watch`, `uptime`, and `tload`.
 
-## License
-
-GPL-2.0-or-later (upstream procps-ng).
