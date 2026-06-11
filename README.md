@@ -39,3 +39,22 @@ The Linux-only programs read `/proc` directly; their macOS/Windows analogues are
 
 Each binary embeds the man pages for the programs it actually ships — read with `unpin man procps-ng`. Linux carries the full set (`ps`, `top`, `free`, `kill`, `pgrep`/`pkill`/`pidwait`, `pidof`, `pmap`, `pwdx`, `slabtop`, `sysctl` + `sysctl.conf`, `vmstat`, `watch`, `uptime`, `tload`); macOS and Windows carry just `watch`, `uptime`, and `tload`.
 
+## Build locally
+
+```bash
+nix build github:unpins/procps-ng
+./result/bin/procps-ng free
+```
+
+Or run directly:
+
+```bash
+nix run github:unpins/procps-ng -- uptime
+```
+
+The first invocation will offer to add the [unpins.cachix.org](https://unpins.cachix.org) substituter so most pulls come pre-built.
+
+## Manual download
+
+The [Releases](https://github.com/unpins/procps-ng/releases) page has standalone binaries for manual download.
+
