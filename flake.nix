@@ -34,11 +34,12 @@
       name = "procps-ng";
       pkgsAttr = "procps";
       # `watch --version` exits 0 + prints "watch from procps-ng 4.0.6"
-      # on every target. Linux dispatcher accepts `procps-ng watch …`
-      # → watch_main; darwin/cosmo dispatchers fall through to watch
-      # when the binary is renamed by CI smoke. smokePattern is the
-      # PACKAGE_STRING from c.h's PROCPS_NG_VERSION macro.
-      smoke = [ "watch" "--version" ];
+      # on every target. `--unpin-program=watch` selects the applet
+      # explicitly through the unified multicall selector, independent of
+      # argv[0] — so it works whether the binary is named procps-ng or was
+      # renamed by CI smoke. smokePattern is the PACKAGE_STRING from c.h's
+      # PROCPS_NG_VERSION macro.
+      smoke = [ "--unpin-program=watch" "--version" ];
       smokePattern = "procps-ng";
       build = pkgs:
         if pkgs.stdenv.hostPlatform.isLinux then
