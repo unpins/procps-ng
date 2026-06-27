@@ -41,11 +41,54 @@
       # PROCPS_NG_VERSION macro.
       smoke = [ "--unpin-program=watch" "--version" ];
       smokePattern = "procps-ng";
+
+      # Build via the unpin-llvm engine + emit a bitcode multicall module. On
+      # Linux the engine compiles plain pkgsStatic.procps (every tool is its
+      # own upstream binary) to bitcode and the standalone self-folds them into
+      # one `procps-ng` binary; darwin keeps the 3-applet portable.nix subset,
+      # windows via cosmo. pgrep/pkill/pidwait are byte-identical binaries that
+      # self-dispatch by argv[0], so pkill/pidwait are aliases of pgrep, not
+      # separate programs. The X+Z fold in ./multicall.nix can't run on the
+      # engine's -flto bitcode objects, so it's dropped here. The personality
+      # rename (musl/LTO `personality` global vs musl syscall) is still needed
+      # under the engine's chain-LTO, so the override carries it. Pure C.
+      engine = "unpin-llvm";
+      multicall = {
+        programs = [
+          # `ps` links as `src/ps/pscommand` (automake renames it to `ps` only
+          # at install via `transform`), so the capture sidecar is named after
+          # the LINKED name. List the linked name as the program and `ps` as its
+          # alias (the final user-facing applet); defaultProgram routes bare
+          # `procps-ng` → ps.
+          { name = "pscommand"; aliases = [ "ps" ]; }
+          { name = "top"; }
+          { name = "free"; }
+          { name = "kill"; }
+          { name = "pgrep"; aliases = [ "pkill" "pidwait" ]; }
+          { name = "pidof"; }
+          { name = "pmap"; }
+          { name = "pwdx"; }
+          { name = "slabtop"; }
+          { name = "hugetop"; }
+          { name = "sysctl"; }
+          { name = "tload"; }
+          { name = "uptime"; }
+          { name = "vmstat"; }
+          { name = "watch"; }
+        ];
+        defaultProgram = "ps";
+      };
+      # `ps` is reached via the alias of the `pscommand` program above.
+
       build = pkgs:
         if pkgs.stdenv.hostPlatform.isLinux then
-          import ./multicall.nix {
-            lib = pkgs.lib // unpins-lib.lib;
-          } pkgs
+          # Engine path: plain pkgsStatic.procps + the personality-rename fix
+          # (the only source change ./multicall.nix made that the chain-LTO
+          # link still requires; everything else there was the manual fold).
+          pkgs.pkgsStatic.procps.overrideAttrs (old: {
+            patches = (old.patches or [ ]) ++ [ ./personality-rename.patch ];
+            doCheck = false;
+          })
         else
           import ./portable.nix {
             lib = pkgs.lib // unpins-lib.lib;
