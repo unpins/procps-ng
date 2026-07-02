@@ -87,6 +87,9 @@
           # link still requires; everything else there was the manual fold).
           pkgs.pkgsStatic.procps.overrideAttrs (old: {
             patches = (old.patches or [ ]) ++ [ ./personality-rename.patch ];
+            # procps' `make check` is a dejagnu suite that spawns processes and
+            # reads /proc for exact output matches — too environment-sensitive
+            # to gate a static-musl sandbox build (nixpkgs keeps it off too).
             doCheck = false;
           })
         else

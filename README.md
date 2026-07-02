@@ -39,6 +39,12 @@ The Linux-only programs read `/proc` directly; their macOS/Windows analogues are
 
 Each binary embeds the man pages for the programs it actually ships — read with `unpin man procps-ng`. Linux carries the full set (`ps`, `top`, `free`, `kill`, `pgrep`/`pkill`/`pidwait`, `pidof`, `pmap`, `pwdx`, `slabtop`, `sysctl` + `sysctl.conf`, `vmstat`, `watch`, `uptime`, `tload`); macOS and Windows carry just `watch`, `uptime`, and `tload`.
 
+## Build notes
+
+- **Platforms.** Linux uses a static build with the full `/proc`-reading applet set. macOS and Windows ship only the portable trio (`watch`, `uptime`, `tload`); on those OSes `uptime`/`tload` route through per-OS shims (sysctl + utmpx on macOS; `clock_gettime` + `getloadavg` via Cosmopolitan on Windows), and Windows is built with Cosmopolitan.
+- **Terminal.** `top`, `watch`, and `slabtop` link ncurses; a minimal fallback terminfo is compiled in, so they render on common terminals even without a host terminfo database (which still wins when present).
+- **Tests.** procps-ng's `make check` is a DejaGnu suite that spawns processes and matches exact `/proc` output — too environment-sensitive to run in a static-musl sandbox (nixpkgs keeps it off too), so `doCheck` is disabled. The `watch --version` smoke is the floor.
+
 ## Build locally
 
 ```bash
