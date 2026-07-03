@@ -54,6 +54,19 @@
       # under the engine's chain-LTO, so the override carries it. Pure C.
       engine = "unpin-llvm";
       multicall = {
+        # darwin ships a genuine SUBSET: no /proc means ps/top/free/… have no
+        # analogue, so ./portable.nix builds only watch/uptime/tload. Those three
+        # go through the SAME engine self-fold as Linux (portable.nix links them
+        # as separate engine-compiled binaries; the module hook + selfFold merge
+        # them with the `--unpin-program=`-aware dispatcher) — `darwinPrograms`
+        # tells nix-lib to fold exactly this subset on a darwin host instead of
+        # the full `programs` list below. windows/cosmo bypasses the engine and
+        # keeps portable.nix's own dispatcher fold.
+        darwinPrograms = [
+          { name = "watch"; }
+          { name = "uptime"; }
+          { name = "tload"; }
+        ];
         programs = [
           # `ps` links as `src/ps/pscommand` (automake renames it to `ps` only
           # at install via `transform`), so the capture sidecar is named after

@@ -9,6 +9,24 @@
 # Linux keeps the 17-applet multicall.nix path; this file is not touched
 # on Linux.
 #
+# TWO FOLD PATHS, one source layer. The portability layer (config.h, the
+# <wctype.h>/__fpending fixups, and portable-libproc.c's sysctl/utmpx shims)
+# is shared. The FOLD differs by target:
+#
+#   darwin (engine) — build watch/uptime/tload as three SEPARATE normal
+#     executables (each its own `main`). The unpin-llvm engine compiles them
+#     to bitcode and the capture shim records each link's inputs; nix-lib's
+#     multicallModuleHookLTO + selfFold then merge them into one binary with
+#     the SAME dispatcher the Linux/mega path uses (understands
+#     `--unpin-program=`). So darwin no longer hand-rolls a dispatcher — it
+#     rides the engine self-fold like every other native target. flake.nix
+#     sets `multicall.darwinPrograms = [watch uptime tload]` (the darwin
+#     subset) so the module folds exactly these three.
+#
+#   cosmo/windows — the engine doesn't run on cosmocc, so this file keeps its
+#     hand-rolled dispatcher.c fold (`-Dmain=<app>_main` + argv[0] dispatch)
+#     and ships the single binary directly via withAliases.
+#
 # We skip upstream's `make all` because it pulls in /proc-only readers
 # (library/sysinfo.c, library/uptime.c with their /proc/uptime,
 # /proc/loadavg fopen calls) that we'd otherwise have to either build
@@ -156,10 +174,11 @@ let
       # container_uptime}. No config.h dependency.
       $CC -O2 -c -o multicall/portable-libproc.o portable-libproc.c
 
-      # Each applet compiled with -Dmain=<applet>_main so the final link
-      # gets three distinct entry points (mirrors the Linux multicall
-      # recipe's rename-header step, but trivially because we don't have
-      # cross-applet symbol collisions in just 3 sources).
+    '' + (if isCosmo then ''
+      # cosmo/windows fold: the engine doesn't run on cosmocc, so hand-roll
+      # the dispatcher. Each applet compiled with -Dmain=<applet>_main so the
+      # final link gets three distinct entry points (mirrors the Linux
+      # multicall recipe's rename-header step, trivially — only 3 sources).
       for app in ${lib.concatStringsSep " " applets}; do
         $CC $NIX_CFLAGS_COMPILE $CFLAGS_BASE -Dmain=''${app}_main \
           -c -o multicall/$app.o src/$app.c
@@ -225,7 +244,31 @@ let
         multicall/watch.o multicall/uptime.o multicall/tload.o \
         multicall/strutils.o multicall/fileutils.o \
         multicall/portable-libproc.o \
-        $NCLIBS -lm
+        $NCLIBS
+    '' else ''
+      # darwin (engine) fold: build each applet as its own normal executable
+      # (real `main`, NO -Dmain rename). The unpin-llvm cc-wrapper compiles to
+      # bitcode and the capture shim records each link's objects into a
+      # $UNPIN_LINK_DIR/<app>.link sidecar; nix-lib's multicallModuleHookLTO
+      # reads those, builds one bitcode module per applet, and selfFold merges
+      # the three with the engine dispatcher. No hand-rolled dispatcher here.
+      #
+      # Every applet links ALL shared objects + NCLIBS uniformly: the module
+      # hook internalizes each program's module independently (unused code is
+      # made local, not eliminated) and llvm-link auto-renames the resulting
+      # internal duplicates, so sharing strutils/fileutils/portable-libproc
+      # across the three costs a little dead code, never a symbol clash. The
+      # output basename IS the applet name so the sidecar is <app>.link, which
+      # is what darwinPrograms lists.
+      for app in ${lib.concatStringsSep " " applets}; do
+        $CC $NIX_CFLAGS_COMPILE $CFLAGS_BASE -c -o multicall/$app.o src/$app.c
+        $CC -o multicall/$app \
+          multicall/$app.o \
+          multicall/strutils.o multicall/fileutils.o \
+          multicall/portable-libproc.o \
+          $NCLIBS
+      done
+    '') + ''
 
       runHook postBuild
     '';
@@ -233,14 +276,24 @@ let
     installPhase = ''
       runHook preInstall
       mkdir -p "$out/bin"
+    '' + (if isCosmo then ''
       install -m755 multicall/procps-ng "$out/bin/procps-ng"
       for app in ${lib.concatStringsSep " " applets}; do
         ln -s procps-ng "$out/bin/$app"
       done
+    '' else ''
+      # Install the three programs as separate binaries — the base drv the
+      # engine self-fold consumes (via its `module` output), same shape as a
+      # plain multi-binary package (coreutils' ls/cat/…). The shipped binary
+      # is the self-folded one; these are just the fold's inputs.
+      for app in ${lib.concatStringsSep " " applets}; do
+        install -m755 "multicall/$app" "$out/bin/$app"
+      done
+    '') + ''
 
       # Embed the 3 portable applets' man pages (committed roff under the
-      # source `man/` dir). withMan harvests $out/share/man for the darwin
-      # build. The Windows/cosmo build ignores this $out and uses
+      # source `man/` dir). The darwin self-fold merges $out/share/man via the
+      # manifest's manRoot; the Windows/cosmo build ignores this $out and uses
       # flake.nix's winManRoot (same 3 pages) so it doesn't over-embed the
       # full Linux nixpkgs procps man set.
       for app in ${lib.concatStringsSep " " applets}; do
@@ -251,13 +304,21 @@ let
     '';
   };
 in
-# On cosmo the cosmoApelinkBins preFixupHook renames every ELF to
-# `<name>.exe` and rewires same-dir symlinks to match — so when
-# withAliases's postFixup looks up the primary binary, the right name
-# is `procps-ng.exe`. Native targets keep the bare name.
-lib.withAliases pkgs
-  {
-    primary = if isCosmo then "procps-ng.exe" else "procps-ng";
-    aliasesFromSymlinksIn = "bin";
-  }
+# cosmo/windows ships this drv directly (the engine self-fold doesn't run on
+# cosmocc), so it self-embeds its aliases here: cosmoApelinkBins renames every
+# ELF to `<name>.exe` and rewires same-dir symlinks, so the primary is
+# `procps-ng.exe`.
+#
+# Native darwin returns the raw 3-binary drv instead: nix-lib's engine module
+# hook + selfFold (driven by flake.nix's `multicall.darwinPrograms`) consume its
+# `module` output and produce the single folded binary — no aliases/dispatcher
+# to add here.
+if isCosmo then
+  lib.withAliases pkgs
+    {
+      primary = "procps-ng.exe";
+      aliasesFromSymlinksIn = "bin";
+    }
+    multicall
+else
   multicall
