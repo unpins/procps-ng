@@ -71,8 +71,7 @@
           # `ps` links as `src/ps/pscommand` (automake renames it to `ps` only
           # at install via `transform`), so the capture sidecar is named after
           # the LINKED name. List the linked name as the program and `ps` as its
-          # alias (the final user-facing applet); defaultProgram routes bare
-          # `procps-ng` → ps.
+          # alias (the final user-facing applet).
           { name = "pscommand"; aliases = [ "ps" ]; }
           { name = "top"; }
           { name = "free"; }
@@ -89,7 +88,6 @@
           { name = "vmstat"; }
           { name = "watch"; }
         ];
-        defaultProgram = "ps";
       };
       # `ps` is reached via the alias of the `pscommand` program above.
 

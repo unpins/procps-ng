@@ -247,10 +247,10 @@ let
       done < multicall/tools.filtered.tsv
 
       # 4. dispatcher.c from multicall/applets.list (TSV name\tfn) via the
-      #    shared Recipe-A generator. defaultApplet=src_ps_pscommand routes
-      #    --version/--help and a renamed binary into ps (see nix-lib
+      #    shared Recipe-A generator. `procps-ng` is not one of the programs, so
+      #    a bare or renamed binary lists them (see nix-lib
       #    lib.multicallTableDispatcherC).
-${lib.multicallTableDispatcherC { name = "procps-ng"; defaultApplet = "src_ps_pscommand"; }}
+${lib.multicallTableDispatcherC { name = "procps-ng"; }}
 
       $CC -O2 -c -o multicall/dispatcher.o multicall/dispatcher.c
 
