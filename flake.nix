@@ -8,9 +8,9 @@
 
   inputs.unpins-lib.url = "github:unpins/nix-lib";
 
-  # Linux: full 16-applet multicall from `pkgsStatic.procps` (post-link
-  # rename recipe in ./multicall.nix — same shape as e2fsprogs /
-  # util-linux / findutils).
+  # Linux: the full applet set from `pkgsStatic.procps`, self-folded through
+  # the unpin-llvm engine (the post-link rename recipe this package used to
+  # carry is gone — see `build` below).
   #
   # darwin + Windows (cosmo): 3-applet subset (watch, uptime, tload)
   # via ./portable.nix. watch is pure POSIX; uptime + tload route
@@ -28,6 +28,14 @@
       # darwin embeds, version-matched, no winManRoot graft (which would have
       # pulled nixpkgs procps' FULL set, or needed a separate 4.0.6 fetch to
       # dodge the 4.0.4 skew).
+
+      # The portable 3-applet table ./portable.nix folds, declared once: it
+      # renders applets.list and the dispatcher from this, `withAliases`
+      # announces it, and `multicall.windowsTable` hands the same value to CI.
+      winTable = unpins-lib.lib.multicallTable {
+        name = "procps-ng";
+        applets = map (n: { name = n; }) [ "watch" "uptime" "tload" ];
+      };
     in
     unpins-lib.lib.mkStandaloneFlake {
       inherit self;
@@ -48,8 +56,9 @@
       # one `procps-ng` binary; darwin keeps the 3-applet portable.nix subset,
       # windows via cosmo. pgrep/pkill/pidwait are byte-identical binaries that
       # self-dispatch by argv[0], so pkill/pidwait are aliases of pgrep, not
-      # separate programs. The X+Z fold in ./multicall.nix can't run on the
-      # engine's -flto bitcode objects, so it's dropped here. The personality
+      # separate programs. The X+Z fold this package used to carry can't run
+      # on the engine's -flto bitcode objects, so it is gone (./multicall.nix
+      # was deleted once nothing imported it). The personality
       # rename (musl/LTO `personality` global vs musl syscall) is still needed
       # under the engine's chain-LTO, so the override carries it. Pure C.
       engine = "unpin-llvm";
@@ -62,11 +71,8 @@
         # tells nix-lib to fold exactly this subset on a darwin host instead of
         # the full `programs` list below. windows/cosmo bypasses the engine and
         # keeps portable.nix's own dispatcher fold.
-        darwinPrograms = [
-          { name = "watch"; }
-          { name = "uptime"; }
-          { name = "tload"; }
-        ];
+        darwinPrograms = map (n: { name = n; }) winTable.announced;
+        windowsTable = winTable;
         programs = [
           # `ps` links as `src/ps/pscommand` (automake renames it to `ps` only
           # at install via `transform`), so the capture sidecar is named after
@@ -94,7 +100,7 @@
       build = pkgs:
         if pkgs.stdenv.hostPlatform.isLinux then
           # Engine path: plain pkgsStatic.procps + the personality-rename fix
-          # (the only source change ./multicall.nix made that the chain-LTO
+          # (the only source change the retired X+Z fold made that the chain-LTO
           # link still requires; everything else there was the manual fold).
           pkgs.pkgsStatic.procps.overrideAttrs (old: {
             patches = (old.patches or [ ]) ++ [ ./personality-rename.patch ];
@@ -106,12 +112,13 @@
         else
           import ./portable.nix {
             lib = pkgs.lib // unpins-lib.lib;
+            inherit winTable;
           } pkgs.pkgsStatic;
       windowsBuild = pkgs:
         let
           lib = pkgs.lib // unpins-lib.lib;
           cosmoPkgs = lib.cosmoStaticCross pkgs;
         in
-        import ./portable.nix { inherit lib; } cosmoPkgs;
+        import ./portable.nix { inherit lib winTable; } cosmoPkgs;
     };
 }

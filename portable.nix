@@ -6,8 +6,8 @@
 #   tload  — needs procps_loadavg only; same shim
 #
 # Used by flake.nix's `build` on darwin and by `windowsBuild` on cosmo.
-# Linux keeps the 17-applet multicall.nix path; this file is not touched
-# on Linux.
+# Linux self-folds the full 15-program set through the engine; this file is
+# not touched there.
 #
 # TWO FOLD PATHS, one source layer. The portability layer (config.h, the
 # <wctype.h>/__fpending fixups, and portable-libproc.c's sysctl/utmpx shims)
@@ -32,7 +32,7 @@
 # /proc/loadavg fopen calls) that we'd otherwise have to either build
 # and ignore or sed out per applet. Hand-rolling the build keeps the
 # compile list minimal and the link line readable.
-{ lib }:
+{ lib, winTable }:
 pkgs:
 let
   version = "4.0.6";
@@ -89,7 +89,9 @@ let
     /* ENABLE_NLS undef: gettext disabled. */
   '';
 
-  applets = [ "watch" "uptime" "tload" ];
+  # The three portable applets, from the table flake.nix declares — the same
+  # value the cosmo dispatcher, the announced list and CI all read.
+  applets = winTable.announced;
 
   multicall = pkgs.stdenv.mkDerivation {
     pname = "procps-ng";
@@ -184,55 +186,14 @@ let
           -c -o multicall/$app.o src/$app.c
       done
 
-      # Dispatcher: basename(argv[0]) → applet, with `procps-ng <applet>`
-      # form for the smoke test. Fallback (e.g. binary renamed by CI smoke)
-      # routes to watch — the only applet that exits 0 on --version
-      # regardless of the caller's name.
-      cat > multicall/dispatcher.c <<'EOF'
-      #include <string.h>
-      #include <stdio.h>
-
-      int watch_main(int, char **);
-      int uptime_main(int, char **);
-      int tload_main(int, char **);
-
-      struct applet { const char *name; int (*fn)(int, char **); };
-      static const struct applet applets[] = {
-          {"watch",  watch_main},
-          {"uptime", uptime_main},
-          {"tload",  tload_main},
-          {NULL, NULL}
-      };
-
-      int main(int argc, char *argv[]) {
-          static char name_buf[64];
-          char *name = argv[0];
-          char *slash = strrchr(name, '/');
-          if (slash) name = slash + 1;
-          char *bs = strrchr(name, '\\');
-          if (bs) name = bs + 1;
-          if (strncmp(name, "lt-", 3) == 0) name += 3;
-          /* Strip the cosmocc-emitted `.exe` so dispatch sees the
-             canonical applet name on both ELF and PE32+ targets. */
-          {
-              size_t l = strlen(name);
-              if (l > 4 && strcmp(name + l - 4, ".exe") == 0) {
-                  if (l - 4 < sizeof(name_buf)) {
-                      memcpy(name_buf, name, l - 4);
-                      name_buf[l - 4] = '\0';
-                      name = name_buf;
-                  }
-              }
-          }
-          if ((strcmp(name, "procps-ng") == 0 || strcmp(name, "procps") == 0)
-              && argc >= 2 && argv[1][0] != '-') {
-              name = argv[1]; argv++; argc--;
-          }
-          for (const struct applet *a = applets; a->name; a++)
-              if (strcmp(name, a->name) == 0) return a->fn(argc, argv);
-          return watch_main(argc, argv);
-      }
-      EOF
+      # applets.list + dispatcher.c, both rendered from the ONE table the flake
+      # declares — the same shared generator every other fold in the catalog
+      # uses. What was here before was hand-rolled and had never learned
+      # `--unpin-program=`, so the selector reached the applet as an argument
+      # and every unknown name fell through to `watch`; CI could not see it,
+      # because a fold nix-lib doesn't do declared `dispatcher = false`, which
+      # is exactly the reading that switches the negative control off.
+${winTable.emit { }}
       $CC -O2 -c -o multicall/dispatcher.o multicall/dispatcher.c
 
       # Final link. cc-wrapper auto-injects -L paths for ncurses from
@@ -317,7 +278,7 @@ if isCosmo then
   lib.withAliases pkgs
     {
       primary = "procps-ng.exe";
-      aliasesFromSymlinksIn = "bin";
+      aliases = winTable.announced;
     }
     multicall
 else
