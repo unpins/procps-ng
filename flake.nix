@@ -104,6 +104,17 @@
           # link still requires; everything else there was the manual fold).
           pkgs.pkgsStatic.procps.overrideAttrs (old: {
             patches = (old.patches or [ ]) ++ [ ./personality-rename.patch ];
+            # `pkill` is announced (pgrep self-dispatches it) but ships no page:
+            # procps-ng 4.0.6's Makefile.am ends the `dist_man_MANS` list with
+            # `man/procps_misc.3` and NO trailing backslash, so the `man/pkill.1`
+            # line under it is dangling — the stub is neither distributed in the
+            # tarball nor installed. `pidwait.1`, added later in its own `+=`, is
+            # the same one-line `.so` stub and is there, which is what the missing
+            # one should look like. Write it rather than patch a Makefile.am that
+            # would force an autoreconf.
+            postInstall = (old.postInstall or "") + ''
+              printf '.so man1/pgrep.1\n' > "$out/share/man/man1/pkill.1"
+            '';
             # procps' `make check` is a dejagnu suite that spawns processes and
             # reads /proc for exact output matches — too environment-sensitive
             # to gate a static-musl sandbox build (nixpkgs keeps it off too).
