@@ -76,9 +76,12 @@
         programs = [
           # `ps` links as `src/ps/pscommand` (automake renames it to `ps` only
           # at install via `transform`), so the capture sidecar is named after
-          # the LINKED name. List the linked name as the program and `ps` as its
-          # alias (the final user-facing applet).
-          { name = "pscommand"; aliases = [ "ps" ]; }
+          # the LINKED name — that is what `linkName` is for. It used to be the
+          # program's `name`, which is also the applet name, so `pscommand`
+          # ended up in `announced`: offered by `unpin --help` and given a slot
+          # by `unpin install`, for a name that exists nowhere but the build
+          # tree.
+          { name = "ps"; linkName = "pscommand"; }
           { name = "top"; }
           { name = "free"; }
           { name = "kill"; }
@@ -95,7 +98,6 @@
           { name = "watch"; }
         ];
       };
-      # `ps` is reached via the alias of the `pscommand` program above.
 
       build = pkgs:
         if pkgs.stdenv.hostPlatform.isLinux then
