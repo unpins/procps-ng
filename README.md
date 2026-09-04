@@ -14,8 +14,9 @@ Part of the [unpins](https://unpins.org) catalog; install it with [`unpin`](http
 Run a program with [unpin](https://github.com/unpins/unpin):
 
 ```bash
-unpin procps-ng watch -n 1 date
-unpin procps-ng uptime
+unpin procps-ng --unpin-program=watch -n 1 date
+unpin procps-ng --unpin-program=uptime
+unpin procps-ng --unpin-program=free -h
 ```
 
 To install the programs onto your PATH:
@@ -37,7 +38,7 @@ The Linux-only programs read `/proc` directly; their macOS/Windows analogues are
 
 ## Man pages
 
-Each binary embeds the man pages for the programs it actually ships — read with `unpin man procps-ng`. Linux carries the full set (`ps`, `top`, `free`, `kill`, `pgrep`/`pkill`/`pidwait`, `pidof`, `pmap`, `pwdx`, `slabtop`, `sysctl` + `sysctl.conf`, `vmstat`, `watch`, `uptime`, `tload`); macOS and Windows carry just `watch`, `uptime`, and `tload`.
+Each binary embeds the man pages for the programs it actually ships — read one with `unpin man procps-ng <program>`, e.g. `unpin man procps-ng ps`. Linux carries the full set (`ps`, `top`, `free`, `kill`, `pgrep`/`pkill`/`pidwait`, `pidof`, `pmap`, `pwdx`, `slabtop`, `sysctl` + `sysctl.conf`, `vmstat`, `watch`, `uptime`, `tload`); macOS and Windows carry just `watch`, `uptime`, and `tload`.
 
 ## Build notes
 
@@ -49,13 +50,13 @@ Each binary embeds the man pages for the programs it actually ships — read wit
 
 ```bash
 nix build github:unpins/procps-ng
-./result/bin/procps-ng free
+./result/bin/procps-ng --unpin-program=free
 ```
 
 Or run directly:
 
 ```bash
-nix run github:unpins/procps-ng -- uptime
+nix run github:unpins/procps-ng -- --unpin-program=uptime
 ```
 
 The first invocation will offer to add the [unpins.cachix.org](https://unpins.cachix.org) substituter so most pulls come pre-built.

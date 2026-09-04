@@ -114,8 +114,13 @@
             # the same one-line `.so` stub and is there, which is what the missing
             # one should look like. Write it rather than patch a Makefile.am that
             # would force an autoreconf.
+            # `procps.3`, `procps_misc.3` and `procps_pids.3` document the
+            # libproc2 C API. This package ships programs, not the dev library,
+            # so they are pages for something the binary has not got — the same
+            # phantom psmisc's peekfd.1 was.
             postInstall = (old.postInstall or "") + ''
               printf '.so man1/pgrep.1\n' > "$out/share/man/man1/pkill.1"
+              rm -f "$out"/share/man/man3/procps*.3*
             '';
             # procps' `make check` is a dejagnu suite that spawns processes and
             # reads /proc for exact output matches — too environment-sensitive
