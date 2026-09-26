@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [4.0.6-2] - 2026-09-26
+
 ### Fixed
 
 - `unpin install procps-ng` now creates the commands. In the v4.0.6-1 release
