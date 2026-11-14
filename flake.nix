@@ -55,7 +55,8 @@
       # own upstream binary) to bitcode and the standalone self-folds them into
       # one `procps-ng` binary; darwin keeps the 3-applet portable.nix subset,
       # windows via cosmo. pgrep/pkill/pidwait are byte-identical binaries that
-      # self-dispatch by argv[0], so pkill/pidwait are aliases of pgrep, not
+      # pick their mode from program_invocation_short_name (the dispatcher points
+      # it at the selected program), so pkill/pidwait are aliases of pgrep, not
       # separate programs. The X+Z fold this package used to carry can't run
       # on the engine's -flto bitcode objects, so it is gone (./multicall.nix
       # was deleted once nothing imported it). The personality
