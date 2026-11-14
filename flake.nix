@@ -132,11 +132,6 @@
             lib = pkgs.lib // unpins-lib.lib;
             inherit winTable;
           } pkgs.pkgsStatic;
-      windowsBuild = pkgs:
-        let
-          lib = pkgs.lib // unpins-lib.lib;
-          cosmoPkgs = lib.cosmoStaticCross pkgs;
-        in
-        import ./portable.nix { inherit lib winTable; } cosmoPkgs;
+      windowsBuild = import ./cosmo.nix { inherit unpins-lib winTable; };
     };
 }
