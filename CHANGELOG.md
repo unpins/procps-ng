@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `procps-ng --unpin-program=pkill` and `--unpin-program=pidwait` behaved as
+  `pgrep`: they matched processes and printed them instead of signalling or
+  waiting for them. Running them as `pkill` and `pidwait` (the names
+  `unpin install` creates) was not affected.
+
 ## [4.0.6-2] - 2026-09-26
 
 ### Fixed
